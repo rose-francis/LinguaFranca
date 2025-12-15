@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel
 from supabase import create_client
 import os
@@ -67,3 +67,9 @@ def signin(user: SignInModel):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/logout")
+def logout(response: Response):
+    # If using cookies/session:
+    response.delete_cookie(key="access_token")
+    return {"message": "Logged out successfully"}

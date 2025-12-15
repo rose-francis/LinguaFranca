@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import axios from "axios";
 
 /**
  * CLEAN FRONTEND-ONLY LAVENDER LANDING PAGE
@@ -43,6 +44,24 @@ export default function Landing() {
   const recognitionRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+
+  async function handleLogout() {
+  try {
+    await axios.post(
+      "http://127.0.0.1:8000/logout",
+      {}, // empty body
+      { withCredentials: true } // important if your backend uses cookies
+    );
+
+    localStorage.removeItem("token");
+   
+
+    // Redirect to login page
+    window.location.href = "/signin";
+  } catch (err) {
+    console.error("Logout failed", err);
+  }
+}
 
   // ---------------------------
   // SPEECH-TO-TEXT (MIC)
@@ -114,12 +133,17 @@ export default function Landing() {
   // ---------------------------
   return (
     <div style={page}>
-      <div style={topStripe} />
+    
+     <div style={topStripe} >
+        <button style={Logbutton} onClick={handleLogout}>
+          Logout
+      </button>
+      </div>
 
       <div style={container}>
         <header style={header}>
           <h1 style={title}>
-            <span style={titleAccent}>Lingua</span>Franca
+            <span className="text-purple-700">Lingua</span>Franca
           </h1>
           <p style={subtitle}>Speak freely, understand clearly.</p>
         </header>
@@ -209,9 +233,11 @@ export default function Landing() {
           </div>
         </main>
 
-        <footer style={footer}>Made with ❤️ — LinguaFranca</footer>
+        <footer style={footer}>Made with 💜 — LinguaFranca</footer>
       </div>
-    </div>
+      </div>
+    
+  
   );
 }
 
@@ -219,16 +245,13 @@ export default function Landing() {
 
 const page = {
   minHeight: "100vh",
-  background: "linear-gradient(180deg, #fbf8ff 0%, #f3e8ff 100%)",
-  paddingBottom: 40,
 };
 
 const topStripe = {
-  height: 46,
-  background:
-    "linear-gradient(90deg, rgba(107,70,193,0.95), rgba(140,102,255,0.85))",
-  width: "100%",
-  boxShadow: "0 4px 20px rgba(107,70,193,0.08)",
+      height: "60px",
+      backgroundColor: "#9333ea",
+      position: "relative",
+      marginBottom:50,
 };
 
 const container = {
@@ -237,7 +260,7 @@ const container = {
   padding: "0 16px",
 };
 
-const header = { textAlign: "center", marginBottom: 20 };
+const header = { textAlign: "center", marginBottom: 20, marginTop:20 };
 
 const title = {
   fontSize: 46,
@@ -248,7 +271,6 @@ const title = {
   color: "transparent",
 };
 
-const titleAccent = { color: "#6b46c1", marginRight: 6 };
 
 const subtitle = { marginTop: 8, color: "#5b4d80", fontSize: 15 };
 
@@ -257,6 +279,18 @@ const card = {
   padding: 20,
   borderRadius: 14,
   boxShadow: "0 10px 40px rgba(99, 102, 241, 0.08)",
+};
+
+const Logbutton ={
+    padding: "8px 18px",
+    position: "absolute",
+    fontWeight: 600,
+    top: "8px",
+    right: "16px",
+    backgroundColor: "white",
+    color: "#6b46c1",
+    borderRadius: "6px",
+    cursor: "pointer",
 };
 
 const panels = {
