@@ -126,10 +126,23 @@ export default function Landing() {
   // ---------------------------
   // "TRANSLATE" FRONTEND-ONLY
   // ---------------------------
-  function fakeTranslate() {
-    if (!input.trim()) return;
-    setTranslated(`(Pretend translation → ${target})\n\n${input}`);
-  }
+async function handleTranslate() {
+  if (!input.trim()) return;
+
+  const res = await fetch("http://localhost:8000/translate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: input,
+      source,
+      target
+    })
+  });
+
+  const data = await res.json();
+  setTranslated(data.translatedText || "Translation error");
+}
+
 
   // ---------------------------
   // UI
@@ -225,7 +238,7 @@ export default function Landing() {
               />
 
               <div style={controls}>
-                <button onClick={fakeTranslate} style={primaryBtn}>
+                <button onClick={handleTranslate} style={primaryBtn}>
                   Translate
                 </button>
                 <button onClick={() => setTranslated("")} style={ghostBtn}>
