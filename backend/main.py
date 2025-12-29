@@ -1,5 +1,5 @@
 # main.py
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from auth import router as auth_router
 import logging
 import time
+import base64
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,6 +25,11 @@ GEMINI_MODELS = [
     "gemini-2.0-flash",
     "gemini-flash-latest",
     "gemini-pro-latest",
+]
+
+AUDIO_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash"
 ]
 
 app = FastAPI()
@@ -135,6 +141,67 @@ def translate(req: TranslateRequest):
         status_code=503,
         detail=f"All models are currently unavailable. Please try again in a moment. Last error: {last_error}"
     )
+
+@app.post("/speech")
+async def speech_to_text(
+    audio: UploadFile,
+    source: str = Form(...),
+    target: str = Form(...)
+):
+    if not audio:
+        raise HTTPException(status_code=400, detail="No audio file provided")
+
+    audio_bytes = await audio.read()
+    audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+
+    prompt = (
+        f"Transcribe the following audio spoken in {source}. "
+        f"Do NOT translate the text. "
+        f"Return ONLY the final text."
+    )
+
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt},
+                    {
+                        "inline_data": {
+                            "mime_type": "audio/webm",
+                            "data": audio_b64
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    last_error = None
+
+    for model_name in AUDIO_MODELS:
+        try:
+            logger.info(f"Trying audio model: {model_name}")
+            data = call_gemini_with_retry(model_name, payload)
+
+            if "candidates" not in data or not data["candidates"]:
+                continue
+
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+            logger.info(f"Gemini response: {data}")
+            return {
+                "transcript": text.strip()
+            }
+
+        except Exception as e:
+            logger.warning(f"Audio model {model_name} failed: {str(e)}")
+            last_error = str(e)
+            continue
+
+    raise HTTPException(
+        status_code=503,
+        detail=f"All audio models failed. Last error: {last_error}"
+    )
+
 
 
 app.include_router(auth_router)

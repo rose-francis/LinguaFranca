@@ -2,15 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import {useNavigate} from "react-router-dom";
 import axios from "axios";
 
-/**
- * CLEAN FRONTEND-ONLY LAVENDER LANDING PAGE
- * No backend calls
- * No authentication
- * No tokens
- * No upload endpoints
- * Microphone → Web Speech API
- * Record button → gives you the audio blob locally
- */
 
 const LANGUAGES = [
   { code: "auto", name: "Auto detect" },
@@ -33,37 +24,51 @@ const LANGUAGES = [
   { code: "ru", name: "Russian" },
 ];
 
+const SPEECH_LANG_MAP = {
+  en: "en-US",
+  hi: "hi-IN",
+  ta: "ta-IN",
+  te: "te-IN",
+  ml: "ml-IN",
+  kn: "kn-IN",
+  bn: "bn-IN",
+  pa: "pa-IN",
+  ur: "ur-PK",
+  fr: "fr-FR",
+  es: "es-ES",
+  de: "de-DE",
+  ja: "ja-JP",
+  ko: "ko-KR",
+  zh: "zh-CN",
+  ar: "ar-SA",
+  ru: "ru-RU",
+};
+
+
 
 export default function Landing() {
   const [input, setInput] = useState("");
   const [translated, setTranslated] = useState("");
   const [source, setSource] = useState("auto");
   const [target, setTarget] = useState("en");
-  const navigate=useNavigate();
-
-  const [listening, setListening] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [listening, setListening]=useState(false)
 
+  const navigate=useNavigate();
+  
   const recognitionRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
   async function handleLogout() {
   try {
-    await axios.post(
-      "http://127.0.0.1:8000/logout",
-      {}, // empty body
-      { withCredentials: true } // important if your backend uses cookies
-    );
-
-    localStorage.removeItem("token");
-   
-
-    // Redirect to login page
-    navigate("/signin");
-  } catch (err) {
-    console.error("Logout failed", err);
-  }
+  await axios.post("http://127.0.0.1:8000/logout", {}, { withCredentials: true });
+} catch (err) {
+  console.warn("Logout failed", err);
+} finally {
+  localStorage.removeItem("token");
+  navigate("/signin");
+}
 }
 
   // ---------------------------
@@ -77,7 +82,7 @@ export default function Landing() {
     }
 
     const rec = new SR();
-    rec.lang = "en-US";
+    rec.lang = SPEECH_LANG_MAP[source] || "en-US";
     rec.interimResults = false;
 
     rec.onresult = (e) => {
@@ -89,38 +94,80 @@ export default function Landing() {
     rec.onerror = () => setListening(false);
 
     recognitionRef.current = rec;
-  }, []);
+  }, [source]);
 
   // ---------------------------
   // RECORD AUDIO (LOCAL ONLY)
   // ---------------------------
   async function startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-
-      audioChunksRef.current = [];
-      mr.ondataavailable = (e) => audioChunksRef.current.push(e.data);
-
-      mr.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        console.log("Audio blob captured:", blob);
-
-        // HERE IS WHERE YOU WILL LATER SEND THE BLOB TO GEMINI/VAPI
-        // For now, we just log it.
-      };
-
-      mediaRecorderRef.current = mr;
-      mr.start();
-      setRecording(true);
-    } catch (err) {
-      alert("Microphone error. Check permissions.");
+  try {
+    //  Start speech recognition
+    if (recognitionRef.current) {
+      setListening(true);
+      recognitionRef.current.start();
     }
+
+    //  Start audio recording
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mr = new MediaRecorder(stream);
+
+    audioChunksRef.current = [];
+    mr.ondataavailable = (e) => audioChunksRef.current.push(e.data);
+
+    mr.onstop = async () => {
+  const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+  console.log("Audio blob captured:", blob);
+
+  const formData = new FormData();
+  formData.append("audio", blob, "speech.webm");
+  formData.append("source", source === "auto" ? "en" : source);
+  formData.append("target", target);
+
+  try {
+    const res = await fetch("http://localhost:8000/speech", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errData = await res.json();
+      alert("Transcription failed: " + (errData.detail || "Unknown error"));
+      return;
+    }
+
+
+    const data = await res.json();
+    if (data.transcript) {
+      setInput(data.transcript); // replace textarea with Gemini transcript
+    } else {
+      console.log("No transcript returned from Gemini");
+    }
+  } catch (err) {
+    console.error("Error sending audio:", err);
+    alert("Failed to send audio to backend");
   }
+};
+
+
+    mediaRecorderRef.current = mr;
+    mr.start();
+    setRecording(true);
+
+  } catch (err) {
+    alert("Microphone error. Check permissions.");
+  }
+}
+
 
   function stopRecording() {
-    mediaRecorderRef.current?.stop();
-    setRecording(false);
+  // stop audio recording
+  mediaRecorderRef.current?.stop();
+
+  // stop speech recognition
+  recognitionRef.current?.stop();
+
+  setRecording(false);
+  setListening(false);
   }
 
   // ---------------------------
@@ -298,17 +345,20 @@ const card = {
 };
 
 const Logbutton = {
-  padding: "12px 26px",
+  padding: "10px 18px",
   position: "absolute",
-  top: "8px",
+  top: "12px",
   right: "16px",
-  backgroundColor: "#6b46c1",
-  color: "white",
-  borderRadius: "8px",
+  backgroundColor: "#ffffff",
+  color: "#6b46c1",
+  border: "2px solid #e9d5ff",
+  borderRadius: "10px",
   cursor: "pointer",
-  fontSize: "17px",
-  fontWeight: 600,
+  fontSize: "15px",
+  fontWeight: 700,
+  zIndex: 1000,
 };
+
 
 const panels = {
   display: "flex",

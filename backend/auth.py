@@ -50,20 +50,23 @@ def signup(user: SignUpModel):
 def signin(user: SignInModel):
     try:
         res = supabase.auth.sign_in_with_password({
-            "email": user.email,
-            "password": user.password
+        "email": user.email,
+        "password": user.password
         })
 
-        # Ensure user exists
-        auth_user = res.user or (res.session and res.session.user)
-
-        if auth_user is None:
+        if not res.user:
             raise HTTPException(status_code=400, detail="Invalid email or password")
 
         return {
             "message": "Login successful",
-            "access_token": res.session.access_token
+            "access_token": res.session.access_token,  # <-- this is what frontend expects
+            "user_id": res.user.id
         }
+
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
