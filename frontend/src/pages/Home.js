@@ -121,7 +121,7 @@ export default function Landing() {
 
   const formData = new FormData();
   formData.append("audio", blob, "speech.webm");
-  formData.append("source", source === "auto" ? "en" : source);
+  formData.append("source", source);
   formData.append("target", target);
 
   try {

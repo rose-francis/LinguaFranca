@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from auth import router as auth_router
 import logging
 import time
-import base64
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,10 +26,9 @@ GEMINI_MODELS = [
     "gemini-pro-latest",
 ]
 
-AUDIO_MODELS = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash"
-]
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+GROQ_WHISPER_MODEL = "whisper-large-v3-turbo"
 
 app = FastAPI()
 
@@ -153,60 +151,39 @@ async def speech_to_text(
     source: str = Form(...),
     target: str = Form(...)
 ):
-    if not audio:
-        raise HTTPException(status_code=400, detail="No audio file provided")
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY not found")
 
     audio_bytes = await audio.read()
-    audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="No audio file provided")
 
-    prompt = (
-        f"Transcribe the following audio spoken in {source}. "
-        f"Do NOT translate the text. "
-        f"Return ONLY the final text."
-    )
+    data = {"model": GROQ_WHISPER_MODEL, "response_format": "json"}
+    # Whisper auto-detects the language when none is given
+    if source and source != "auto":
+        data["language"] = source
 
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": prompt},
-                    {
-                        "inline_data": {
-                            "mime_type": "audio/webm",
-                            "data": audio_b64
-                        }
-                    }
-                ]
-            }
-        ]
-    }
+    try:
+        response = requests.post(
+            GROQ_TRANSCRIBE_URL,
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+            files={"file": (audio.filename or "speech.webm", audio_bytes, audio.content_type or "audio/webm")},
+            data=data,
+            timeout=60
+        )
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"Network error: {str(e)}")
 
-    last_error = None
+    if response.status_code != 200:
+        logger.warning(f"Groq Whisper error {response.status_code}: {response.text}")
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=f"Groq transcription error: {response.text}"
+        )
 
-    for model_name in AUDIO_MODELS:
-        try:
-            logger.info(f"Trying audio model: {model_name}")
-            data = call_gemini_with_retry(model_name, payload)
-
-            if "candidates" not in data or not data["candidates"]:
-                continue
-
-            text = data["candidates"][0]["content"]["parts"][0]["text"]
-            logger.info(f"Gemini response: {data}")
-            return {
-                "transcript": text.strip()
-            }
-
-        except Exception as e:
-            logger.warning(f"Audio model {model_name} failed: {str(e)}")
-            last_error = str(e)
-            continue
-
-    raise HTTPException(
-        status_code=503,
-        detail=f"All audio models failed. Last error: {last_error}"
-    )
-
+    text = response.json().get("text", "")
+    logger.info("✅ Transcription successful with Groq Whisper!")
+    return {"transcript": text.strip()}
 
 
 app.include_router(auth_router)
