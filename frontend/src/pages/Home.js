@@ -54,6 +54,7 @@ export default function Landing() {
   const [target, setTarget] = useState("en");
   const [recording, setRecording] = useState(false);
   const [listening, setListening]=useState(false)
+  const [speaking, setSpeaking] = useState(false);
 
   const navigate=useNavigate();
   
@@ -189,7 +190,45 @@ async function handleTranslate() {
 
   const data = await res.json();
   setTranslated(data.translatedText || "Translation error");
+
+  if (data.translatedText) speak(data.translatedText);
 }
+
+  // ---------------------------
+  // TEXT-TO-SPEECH (TRANSLATION)
+  // ---------------------------
+  function speak(text) {
+    const synth = window.speechSynthesis;
+    if (!synth) {
+      alert("Text-to-speech is not supported in this browser.");
+      return;
+    }
+    if (!text.trim()) return;
+
+    synth.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    const lang = SPEECH_LANG_MAP[target] || "en-US";
+    utterance.lang = lang;
+
+    // Prefer a voice for the target language if the browser has one
+    const voices = synth.getVoices();
+    const voice =
+      voices.find((v) => v.lang === lang) ||
+      voices.find((v) => v.lang.startsWith(lang.split("-")[0]));
+    if (voice) utterance.voice = voice;
+
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+
+    setSpeaking(true);
+    synth.speak(utterance);
+  }
+
+  function stopSpeaking() {
+    window.speechSynthesis?.cancel();
+    setSpeaking(false);
+  }
 
 
   // ---------------------------
@@ -289,7 +328,26 @@ async function handleTranslate() {
                 <button onClick={handleTranslate} style={primaryBtn}>
                   Translate
                 </button>
-                <button onClick={() => setTranslated("")} style={ghostBtn}>
+                {!speaking ? (
+                  <button
+                    onClick={() => speak(translated)}
+                    style={secondaryBtn}
+                    disabled={!translated}
+                  >
+                    Speak
+                  </button>
+                ) : (
+                  <button onClick={stopSpeaking} style={secondaryBtnActive}>
+                    Stop
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    stopSpeaking();
+                    setTranslated("");
+                  }}
+                  style={ghostBtn}
+                >
                   Clear
                 </button>
               </div>
