@@ -2,6 +2,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import axios from "axios"; // <-- added
 
+const API_BASE_URL = process.env.REACT_APP_API_URL;
+
 export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -13,7 +15,7 @@ export default function SignIn() {
 
     try {
       const response = await axios.post(
-        "http://127.0.0.1:8000/signin",
+        `${API_BASE_URL}/signin`,
         { email, password },
         { headers: { "Content-Type": "application/json" } }
       );

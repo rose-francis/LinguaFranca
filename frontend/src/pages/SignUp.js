@@ -2,6 +2,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import axios from "axios"; 
 
+const API_BASE_URL = process.env.REACT_APP_API_URL;
+
 export default function SignUp() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -14,7 +16,7 @@ export default function SignUp() {
 
     try {
       const response = await axios.post(
-        "http://127.0.0.1:8000/signup",
+        `${API_BASE_URL}/signup`,
         { name, email, password },
         { headers: { "Content-Type": "application/json" } }
       );
