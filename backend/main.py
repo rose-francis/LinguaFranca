@@ -30,6 +30,20 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 GROQ_WHISPER_MODEL = "whisper-large-v3-turbo"
 
+# Language codes Whisper accepts; anything else is transcribed with auto-detect
+WHISPER_LANGUAGES = {
+    "af", "am", "ar", "as", "az", "ba", "be", "bg", "bn", "bo", "br", "bs", "ca",
+    "cs", "cy", "da", "de", "el", "en", "es", "et", "eu", "fa", "fi", "fo", "fr",
+    "gl", "gu", "ha", "haw", "he", "hi", "hr", "ht", "hu", "hy", "id", "is", "it",
+    "ja", "jw", "ka", "kk", "km", "kn", "ko", "la", "lb", "ln", "lo", "lt", "lv",
+    "mg", "mi", "mk", "ml", "mn", "mr", "ms", "mt", "my", "ne", "nl", "nn", "no",
+    "oc", "pa", "pl", "ps", "pt", "ro", "ru", "sa", "sd", "si", "sk", "sl", "sn",
+    "so", "sq", "sr", "su", "sv", "sw", "ta", "te", "tg", "th", "tk", "tl", "tr",
+    "tt", "uk", "ur", "uz", "vi", "yi", "yo", "yue", "zh",
+}
+# Frontend codes that Whisper spells differently
+WHISPER_ALIASES = {"jv": "jw", "zh-TW": "zh"}
+
 app = FastAPI()
 
 app.add_middleware(
@@ -92,8 +106,13 @@ def translate(req: TranslateRequest):
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="Empty text")
 
+    source_desc = (
+        "its original language (detect it)" if req.source == "auto"
+        else f"the language with ISO/BCP 47 code '{req.source}'"
+    )
     prompt = (
-        f"Translate the following text from {req.source} to {req.target}. "
+        f"Translate the following text from {source_desc} "
+        f"to the language with ISO/BCP 47 code '{req.target}'. "
         f"Return ONLY the translated text without any explanations or notes.\n\n{req.text}"
     )
 
@@ -160,8 +179,9 @@ async def speech_to_text(
 
     data = {"model": GROQ_WHISPER_MODEL, "response_format": "json"}
     # Whisper auto-detects the language when none is given
-    if source and source != "auto":
-        data["language"] = source
+    whisper_lang = WHISPER_ALIASES.get(source, source)
+    if whisper_lang in WHISPER_LANGUAGES:
+        data["language"] = whisper_lang
 
     try:
         response = requests.post(
