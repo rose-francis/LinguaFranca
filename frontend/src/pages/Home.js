@@ -190,8 +190,6 @@ async function handleTranslate() {
 
   const data = await res.json();
   setTranslated(data.translatedText || "Translation error");
-
-  if (data.translatedText) speak(data.translatedText);
 }
 
   // ---------------------------
